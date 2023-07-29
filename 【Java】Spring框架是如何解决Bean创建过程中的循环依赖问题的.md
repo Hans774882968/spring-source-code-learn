@@ -8,6 +8,14 @@
 
 **作者：[hans774882968](https://blog.csdn.net/hans774882968)以及[hans774882968](https://juejin.cn/user/1464964842528888)以及[hans774882968](https://www.52pojie.cn/home.php?mod=space&uid=1906177)**
 
+[本文所用工程](https://github.com/Hans774882968/spring-source-code-learn)
+
+[本文CSDN](https://blog.csdn.net/hans774882968/article/details/131996354)
+
+[本文juejin](https://juejin.cn/post/7261064585007677499)
+
+本文52pojie：https://www.52pojie.cn/thread-1814835-1-1.html
+
 ## 三级缓存数据结构简介
 
 三级缓存数据结构定义和操作三级缓存的函数都位于：[spring-beans/src/main/java/org/springframework/beans/factory/support/DefaultSingletonBeanRegistry.java](https://github.com/spring-projects/spring-framework/blob/502997d8e986dcfde1f49b2b2f443a32b5488b13/spring-beans/src/main/java/org/springframework/beans/factory/support/DefaultSingletonBeanRegistry.java)
@@ -1456,7 +1464,7 @@ com.hans.bean_dependency_cycle.hans.ControllerA@39f82681
 ## 总结
 
 1. 根据常识猜测Spring创建Bean过程解决循环依赖的算法也是Map+记忆化搜索。所以我们可以先找到**递归点**，再去分析调用栈涉及的那些函数，顺便找出其用到的Map数据结构。
-2. 在不了解Spring框架的情况下可以用一个动态调试技巧找到递归点：在执行到某条顺序靠后的语句时，给顺序靠前的语句下一个断点，若下断成功，则说明找到了递归点。剩下的工作就是关注调用栈涉及的函数。
+2. 在不了解Spring框架的情况下可以用一个动态调试技巧快速找到递归点：在执行到某条顺序靠后的语句时，给顺序靠前的语句下一个断点，若下断成功，则说明找到了递归点。剩下的工作就是关注调用栈涉及的函数。
 
 ## 参考资料
 
