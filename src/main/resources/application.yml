@@ -1,0 +1,6 @@
+server:
+  port: 8020
+
+spring:
+  main:
+    allow-circular-references: true
