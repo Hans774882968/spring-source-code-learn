@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans
+    xmlns="http://www.springframework.org/schema/beans"
+    xmlns:aop="http://www.springframework.org/schema/aop"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xmlns:mvc="http://www.springframework.org/schema/mvc"
+    xmlns:p="http://www.springframework.org/schema/p"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                        http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                        http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc.xsd
+                        http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd
+                        "
+>
+    <aop:config>
+        <aop:aspect id="log" ref="logging">
+            <aop:pointcut
+                id="selectAll"
+                expression="execution(* com.hans.aop_demo.xml.Student.*(..))"
+            />
+            <aop:before pointcut-ref="selectAll" method="beforeAdvice" />
+        </aop:aspect>
+    </aop:config>
+
+    <bean id="student" class="com.hans.aop_demo.xml.Student">
+        <property name="name" value="hans" />
+        <property name="age" value="20" />
+    </bean>
+
+    <bean id="logging" class="com.hans.aop_demo.xml.Logging" />
+</beans>

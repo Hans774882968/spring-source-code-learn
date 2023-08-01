@@ -37,7 +37,7 @@
 	private final Map<String, Object> earlySingletonObjects = new ConcurrentHashMap<>(16);
 ```
 
-缓存先找到第一级，第一级没有才查第二级，依此类推。`singletonObjects, earlySingletonObjects, singletonFactories`分别是1到3级。第一级缓存是bean名到成品bean的映射；第二级缓存是bean名到**半成品bean**的映射；第三级缓存是bean名到函数式接口的映射，作用为**延迟调用**函数。
+缓存先找到第1级，第1级没有才查第2级，依此类推。`singletonObjects, earlySingletonObjects, singletonFactories`分别是1到3级。第1级缓存是bean名到成品bean的映射；第2级缓存是bean名到**半成品bean**的映射；第3级缓存是bean名到函数式接口的映射，作用为**延迟调用**函数。
 
 ```java
 @FunctionalInterface
@@ -54,13 +54,13 @@ public interface ObjectFactory<T> {
 }
 ```
 
-第三级缓存的Value里的函数的调用方式就是调用`.getObject()`。
+第3级缓存的Value里的函数的调用方式就是调用`.getObject()`。
 
 为什么需要2级缓存？因为要体现一个分层的思想，半成品bean原则上是不能暴露到外部的。TODO：外部是指？这里我没研究清楚，就先引用了52pojie`@特别的你～`大佬的解释。“防止线程切换时，其他线程取到半成品bean”，我觉得很有道理。
 
 > 外部可能是调用spring容器中BEAN的其他参与者？有些应用启动时（如果懒加载将会是使用时）极其复杂，如果多线程调用将会出现问题（2级缓存加锁是防止多线程创建，这里指该BEAN如果没有创建好，而且只有一个容器，那么其他线程就会使用到，认为是完整的BEAN）。
 
-为什么需要3级缓存？如果所有bean都没有代理对象就不需要第3级缓存。TODO：补充说明。
+为什么需要第3级缓存？如果所有bean都没有代理对象就不需要第3级缓存。TODO：补充说明。
 
 ## 源码阅读
 
@@ -76,20 +76,21 @@ public interface ObjectFactory<T> {
 package com.hans.bean_dependency_cycle;
 
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.ApplicationContext;
+import org.springframework.context.support.AbstractApplicationContext;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
 
 @SpringBootApplication
 public class HansApplication {
 
 	public static void main(String[] args) {
-		ApplicationContext ac = new ClassPathXmlApplicationContext("cycle.xml");
+		AbstractApplicationContext ac = new ClassPathXmlApplicationContext("cycle.xml");
 		A beanA = ac.getBean(A.class);
 		System.out.println(beanA);
 		System.out.println(beanA.getB());
 		B beanB = ac.getBean(B.class);
 		System.out.println(beanB);
 		System.out.println(beanB.getA());
+		ac.close();
 	}
 
 }
@@ -859,7 +860,7 @@ class AnotherEntryTests {
 						"' to allow for resolving potential circular references");
 			}
 			// 为避免后期循环依赖，可以在 bean 初始化完成前将创建实例的 ObjectFactory 加入工厂
-			// 注意，这个方法会操作3级缓存的数据结构，尤其是第3级缓存。在 controllerA -> controllerB -> controllerA 的时候未调用 createBean 的 getSingleton 方法会真正调用这个匿名函数，从而调用 getEarlyBeanReference 进而操作第2级缓存
+			// 注意，这个方法会操作三级缓存的数据结构，尤其是第3级缓存。在 controllerA -> controllerB -> controllerA 的时候未调用 createBean 的 getSingleton 方法会真正调用这个匿名函数，从而调用 getEarlyBeanReference 进而操作第2级缓存
 			addSingletonFactory(beanName, () -> getEarlyBeanReference(beanName, mbd, bean));
 		}
 
@@ -936,14 +937,14 @@ class AnotherEntryTests {
 	protected void addSingletonFactory(String beanName, ObjectFactory<?> singletonFactory) {
 		Assert.notNull(singletonFactory, "Singleton factory must not be null");
 		synchronized (this.singletonObjects) {
-			// controllerA 首次执行到这里，第一级缓存肯定是查不到的
+			// controllerA 首次执行到这里，第1级缓存肯定是查不到的
 			if (!this.singletonObjects.containsKey(beanName)) {
 				// 第3级缓存放入。再回顾一下， singletonFactory存的是 beanName 到一个延迟执行的函数的映射
 				// controllerA 首次执行到这里的时候， singletonFactory = () -> getEarlyBeanReference(beanName, mbd, bean)
 				this.singletonFactories.put(beanName, singletonFactory);
 				// 从早期单例对象的高速缓存（即第2级缓存）移除当前 beanName 对应的缓存对象
 				this.earlySingletonObjects.remove(beanName);
-				// 添加到已注册的单例集合里，和三级缓存无关。值得注意的是， A 首次加入三级缓存时，就是首次加入已注册的单例集合
+				// 添加到已注册的单例集合里，和三级缓存无关。值得注意的是， A 首次加入第3级缓存时，就是首次加入已注册的单例集合
 				this.registeredSingletons.add(beanName);
 			}
 		}
@@ -1432,7 +1433,7 @@ class AnotherEntryTests {
 		}
 ```
 
-经过上面的分析，我们来看更简单的情况：如果没有循环依赖，比如只有`A`依赖`B`，对三级缓存数据结构的操作是怎样的？梳理出调用栈如下：`A doCreateBean -> A applyPropertyValues -> B doGetBean -> B doCreateBean -> B applyPropertyValues -> B回到getSingleton调用addSingleton -> A addSingleton`。可见如果没有循环依赖，就不需要操作第2、3级缓存，但仍然会操作第1级缓存。
+经过上面的分析，我们来看更简单的情况：如果没有循环依赖，比如只有`A`依赖`B`，对三级缓存数据结构的操作是怎样的？梳理出调用栈如下：`A doGetBean -> A doCreateBean -> A addSingletonFactory -> A applyPropertyValues -> B doGetBean -> B doCreateBean -> B addSingletonFactory -> B applyPropertyValues不走到递归点 -> B回到getSingleton调用addSingleton -> A addSingleton`。可见如果没有循环依赖，就不会操作第2级缓存，但仍然会操作第1级缓存。第3级缓存虽然被操作但没有影响。
 
 至此，场景1的递归点和三级缓存的操作时机都已经清楚了。
 
