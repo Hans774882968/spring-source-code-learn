@@ -1,20 +1,20 @@
-package com.hans.bean_dependency_cycle.hans;
+package com.hans.bean_dependency_cycle;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-public class ControllerA {
+public class ControllerB {
     @Autowired
-    private ControllerB cb;
+    private ControllerA ca;
 
-    public ControllerB getCb() {
-        return cb;
+    public ControllerA getCa() {
+        return ca;
     }
 
-    @RequestMapping("/controllerA")
+    @RequestMapping("/controllerB")
     public String index() {
-        return "hello controllerA!";
+        return "hello controllerB!";
     }
 }

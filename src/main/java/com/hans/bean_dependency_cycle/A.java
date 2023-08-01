@@ -1,4 +1,4 @@
-package com.hans.bean_dependency_cycle.hans;
+package com.hans.bean_dependency_cycle;
 
 import lombok.Data;
 

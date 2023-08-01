@@ -62,10 +62,10 @@ public interface ObjectFactory<T> {
 
 #### 场景1：通过xml配置文件来构造循环引用
 
-入口`src\main\java\com\hans\bean_dependency_cycle\hans\HansApplication.java`：
+入口`src\main\java\com\hans\bean_dependency_cycle\HansApplication.java`：
 
 ```java
-package com.hans.bean_dependency_cycle.hans;
+package com.hans.bean_dependency_cycle;
 
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ApplicationContext;
@@ -102,20 +102,20 @@ public class HansApplication {
                         http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc.xsd
                         "
 >
-    <bean id="a" class="com.hans.bean_dependency_cycle.hans.A">
+    <bean id="a" class="com.hans.bean_dependency_cycle.A">
         <property name="b" ref="b"></property>
     </bean>
-    <bean id="b" class="com.hans.bean_dependency_cycle.hans.B">
+    <bean id="b" class="com.hans.bean_dependency_cycle.B">
         <property name="a" ref="a"></property>
     </bean>
 </beans>
 ```
 
-A.java和B.java：
+`A.java`和`B.java`：
 
 ```java
 // A 和 B 不能都使用 lombok，否则无法打印。这里选择了 B 不使用 lombok
-package com.hans.bean_dependency_cycle.hans;
+package com.hans.bean_dependency_cycle;
 
 import lombok.Data;
 
@@ -130,7 +130,7 @@ public class A {
 
 }
 
-package com.hans.bean_dependency_cycle.hans;
+package com.hans.bean_dependency_cycle;
 
 public class B {
     private A a;
@@ -149,20 +149,52 @@ public class B {
 期望输出：
 
 ```
-A(b=com.hans.bean_dependency_cycle.hans.B@750e2b97)
-com.hans.bean_dependency_cycle.hans.B@750e2b97
-com.hans.bean_dependency_cycle.hans.B@750e2b97
-A(b=com.hans.bean_dependency_cycle.hans.B@750e2b97)
+A(b=com.hans.bean_dependency_cycle.B@750e2b97)
+com.hans.bean_dependency_cycle.B@750e2b97
+com.hans.bean_dependency_cycle.B@750e2b97
+A(b=com.hans.bean_dependency_cycle.B@750e2b97)
 ```
 
 场景1不需要配置`spring.main.allow-circular-references`为true也能得到期望输出，TODO：原因未知。
 
-#### 场景2：通过注解+自动装配属性来构造循环引用：以`@Controller`为例
-
-入口`src\main\java\com\hans\bean_dependency_cycle\hans\AnotherEntry.java`：
+【Optional】顺便补充一下场景1的单测`src\test\java\com\hans\bean_dependency_cycleApplicationTests.java`：
 
 ```java
-package com.hans.bean_dependency_cycle.hans;
+package com.hans.bean_dependency_cycle;
+
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
+import org.springframework.test.context.ContextConfiguration;
+
+// 自动收集 cycle.xml 的 bean
+@ContextConfiguration(locations = { "classpath:cycle.xml" })
+@SpringBootTest(classes = HansApplication.class)
+class HansApplicationTests {
+	@Autowired
+	ApplicationContext ac;
+
+	@Test
+	void contextLoads() {
+		A beanA = ac.getBean(A.class);
+		Assertions.assertNotNull(beanA);
+		B beanB = ac.getBean(B.class);
+		Assertions.assertNotNull(beanB);
+		Assertions.assertEquals(beanA, beanB.getA());
+		Assertions.assertEquals(beanB, beanA.getB());
+	}
+
+}
+```
+
+#### 场景2：通过注解+自动装配属性来构造循环引用：以`@Controller`为例
+
+入口`src\main\java\com\hans\bean_dependency_cycle\AnotherEntry.java`：
+
+```java
+package com.hans.bean_dependency_cycle;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -203,9 +235,9 @@ Description:
 The dependencies of some of the beans in the application context form a cycle:
 
 ┌─────┐
-|  controllerA (field private com.hans.bean_dependency_cycle.hans.ControllerB com.hansn_dependency_cycle.hans.ControllerA.cb)
+|  controllerA (field private com.hans.bean_dependency_cycle.ControllerB com.hansn_dependency_cycle.hans.ControllerA.cb)
 ↑     ↓
-|  controllerB (field private com.hans.bean_dependency_cycle.hans.ControllerA com.hansn_dependency_cycle.hans.ControllerB.ca)
+|  controllerB (field private com.hans.bean_dependency_cycle.ControllerA com.hansn_dependency_cycle.hans.ControllerB.ca)
 └─────┘
 
 
@@ -217,8 +249,8 @@ Relying upon circular references is discouraged and they are prohibited by defau
 两个普通的Controller：
 
 ```java
-// src\main\java\com\hans\bean_dependency_cycle\hans\ControllerA.java
-package com.hans.bean_dependency_cycle.hans;
+// src\main\java\com\hans\bean_dependency_cycle\ControllerA.java
+package com.hans.bean_dependency_cycle;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -239,8 +271,8 @@ public class ControllerA {
     }
 }
 
-// src\main\java\com\hans\bean_dependency_cycle\hans\ControllerB.java
-package com.hans.bean_dependency_cycle.hans;
+// src\main\java\com\hans\bean_dependency_cycle\ControllerB.java
+package com.hans.bean_dependency_cycle;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -265,10 +297,39 @@ public class ControllerB {
 期望输出：
 
 ```
-com.hans.bean_dependency_cycle.hans.ControllerA@39f82681
-com.hans.bean_dependency_cycle.hans.ControllerB@4bd9e7fd
-com.hans.bean_dependency_cycle.hans.ControllerB@4bd9e7fd
-com.hans.bean_dependency_cycle.hans.ControllerA@39f82681
+com.hans.bean_dependency_cycle.ControllerA@39f82681
+com.hans.bean_dependency_cycle.ControllerB@4bd9e7fd
+com.hans.bean_dependency_cycle.ControllerB@4bd9e7fd
+com.hans.bean_dependency_cycle.ControllerA@39f82681
+```
+
+【Optional】顺便补充一下场景2的单测`src\test\java\com\hans\bean_dependency_cycle\AnotherEntryTests.java`
+
+```java
+package com.hans.bean_dependency_cycle;
+
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest(classes = AnotherEntry.class)
+class AnotherEntryTests {
+	@Autowired
+	ControllerA ca;
+
+	@Autowired
+	ControllerB cb;
+
+	@Test
+	void contextLoads() {
+		Assertions.assertNotNull(ca);
+		Assertions.assertNotNull(cb);
+		Assertions.assertEquals(ca, cb.getCa());
+		Assertions.assertEquals(cb, ca.getCb());
+	}
+
+}
 ```
 
 ### 脉络
@@ -1285,7 +1346,7 @@ com.hans.bean_dependency_cycle.hans.ControllerA@39f82681
 	}
 ```
 
-`B`创建过程调用栈是完全一样的，接下来我们假设现在走到了`A -> B -> A`，回到了`doGetBean`的`Object sharedInstance = getSingleton(beanName);`处。此时我们需要关注其实现了：
+`B`创建过程调用栈是完全一样的，接下来我们假设现在走到了`A -> B -> A`，回到了`doGetBean`的`Object sharedInstance = getSingleton(beanName);`处。此时我们需要关注其实现了，因为这个函数要调用第3级缓存的函数，获取半成品bean，并放入第2级缓存。
 
 ```java
 	/**
@@ -1324,7 +1385,7 @@ com.hans.bean_dependency_cycle.hans.ControllerA@39f82681
 								// singletonFactory = () -> getEarlyBeanReference(beanName, mbd, bean) 所以 getEarlyBeanReference 返回值会在此被放入第2级缓存
 								singletonObject = singletonFactory.getObject();
 								// 为什么是放第2级缓存？因为 getBean 的递归还没返回
-								// 放入第2级缓存后，三级缓存的就可以移除了
+								// 放入第2级缓存后，第3级缓存的就可以移除了
 								this.earlySingletonObjects.put(beanName, singletonObject);
 								this.singletonFactories.remove(beanName);
 							}
@@ -1336,6 +1397,8 @@ com.hans.bean_dependency_cycle.hans.ControllerA@39f82681
 		return singletonObject;
 	}
 ```
+
+再回忆一遍，什么时候加入第1级缓存？调用了`beforeSingletonCreation`的`getSingleton`方法在间接调用`createBean`后，会调用`addSingleton`方法，将成品bean加入第1级缓存。
 
 `A -> B -> A`的递归返回后，`A, B`两个单例bean都已经是成品，`beanName`遍历到`B`的时候，进入`getSingleton`就能命中第1级缓存了，不用再走一遍`createBean`方法。
 
@@ -1360,6 +1423,8 @@ com.hans.bean_dependency_cycle.hans.ControllerA@39f82681
 			}
 		}
 ```
+
+经过上面的分析，我们来看更简单的情况：如果没有循环依赖，比如只有`A`依赖`B`，对三级缓存数据结构的操作是怎样的？梳理出调用栈如下：`A doCreateBean -> A applyPropertyValues -> B doGetBean -> B doCreateBean -> B applyPropertyValues -> B回到getSingleton调用addSingleton -> A addSingleton`。可见如果没有循环依赖，就不需要操作第2、3级缓存，但仍然会操作第1级缓存。
 
 至此，场景1的递归点和三级缓存的操作时机都已经清楚了。
 
