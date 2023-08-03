@@ -1,7 +1,19 @@
 [toc]
 
 ## 引言
-TODO
+
+> AOP（Aspect Oriented Programming）：面向切面编程，也叫面向方面编程，是目前软件开发中的一个热点，也是 Spring 框架中的一个重要内容。利用AOP可以对业务逻辑的各个部分进行隔离，从而使得业务逻辑各部分之间的耦合度降低，提高程序的可重用性，同时提高了开发效率。
+
+主要使用场景：抽出多处重复的边缘业务，比如：日志记录，性能统计，安全控制，权限管理，事务处理，异常处理，资源池管理……
+
+面向切面编程（AOP）是面向对象编程的补充，简单来说就是统一处理某一“切面”的问题的编程思想。比如说，如果使用AOP的方式进行日志的记录和处理，所有的日志代码都集中于一处，就不需要再修改所有方法，减少了重复代码。
+
+1. 通知（Advice）包含了需要用于多个应用对象的横切行为，完全听不懂，没关系，通俗一点说就是定义了“什么时候”和“做什么”。
+2. 连接点（Join Point）是程序执行过程中能够应用通知的所有点。
+3. 切点（Poincut）是定义了在“什么地方”进行切入，哪些连接点会得到通知。显然，切点一定是连接点。
+4. 切面（Aspect）是通知和切点的结合。通知和切点共同定义了切面的全部内容——是什么，何时，何地完成功能。
+5. 引入（Introduction）允许我们向现有的类中添加新方法或者属性。
+6. 织入（Weaving）是把切面应用到目标对象并创建新的代理对象的过程，分为编译期织入、类加载期织入和运行期织入。
 
 [本文所用工程](https://github.com/Hans774882968/spring-source-code-learn)。
 
@@ -30,6 +42,17 @@ AOP各示例整体的文件结构：
 ```
 
 ## AOP入门示例
+### 依赖
+
+```xml
+<dependency>
+    <groupId>org.aspectj</groupId>
+    <artifactId>aspectjweaver</artifactId>
+    <version>1.9.19</version>
+</dependency>
+```
+
+如果不加`aspectjweaver`依赖，会报错`java.lang.ClassNotFoundException: org.aspectj.lang.JoinPoint`。
 
 ### 示例1：xml配置
 TODO
@@ -264,6 +287,87 @@ public class CglibDemoSingleFile {
         System.out.println(programmer.getName());
     }
 
+}
+```
+
+## 读取 .class 文件、动态hook+动态执行
+
+单个文件：`src\main\java\com\hans\cglib_read_class_file\CglibDemoClassFile.java`。要点：
+
+1. 磁盘的class文件 → `byte[]`。先获取`InputStream is`，再使用`is.read(bytes)`获取`byte[] bytes`。
+2. `byte[]` → `Class<?>`。用`ClassLoader.defineClass`方法把`byte[]`转为`Class<?>`。
+
+```java
+package com.hans.cglib_read_class_file;
+
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+
+import org.springframework.cglib.proxy.Enhancer;
+import org.springframework.cglib.proxy.MethodInterceptor;
+import org.springframework.cglib.proxy.MethodProxy;
+
+class MyClassLoader extends ClassLoader {
+    public Class<?> myDefineClass(String arg0, byte[] arg1, int arg2, int arg3) {
+        return super.defineClass(arg0, arg1, arg2, arg3);
+    }
+}
+
+public class CglibDemoClassFile {
+    static Class<?> readClassFile(String path, String classNamePath, boolean isResourceMode)
+            throws IOException, IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        MyClassLoader cl = new MyClassLoader();
+        InputStream is = isResourceMode ? cl.getResourceAsStream(path) : new FileInputStream(path);
+        int len = 0;
+        while (len == 0)
+            len = is.available();
+        byte[] b = new byte[len];
+        is.read(b);
+        return cl.myDefineClass(classNamePath, b, 0, b.length);
+    }
+
+    static void startHook(Class<?> targetClass) throws Exception {
+        Enhancer enhancer = new Enhancer();
+        enhancer.setSuperclass(targetClass);
+        enhancer.setCallback(new MethodInterceptor() {
+            @Override
+            public Object intercept(Object obj, Method method, Object[] args, MethodProxy methodProxy)
+                    throws Throwable {
+                Long startTime = System.currentTimeMillis();
+                if (method.getName().equals("setAge")) {
+                    if (args.length == 1 && args[0] instanceof Integer) {
+                        int originalAge = (Integer) (args[0]);
+                        args[0] = Integer.valueOf(originalAge + 1);
+                    }
+                }
+                Object result = methodProxy.invokeSuper(obj, args);
+                Long endTime = System.currentTimeMillis();
+                System.out.printf("%s:: Execution time: %d ms\n", method.getName(), endTime - startTime);
+                return result;
+            }
+        });
+
+        Object student = enhancer.create();
+        Method getName = targetClass.getMethod("getName");
+        Method getAge = targetClass.getMethod("getAge");
+        Method setName = targetClass.getMethod("setName", String.class);
+        Method setAge = targetClass.getMethod("setAge", Integer.class);
+        setName.invoke(student, "hans");
+        setAge.invoke(student, 14);
+        for (int i = 0; i < 3; i++) {
+            setAge.invoke(student, getAge.invoke(student));
+        }
+        System.out.println(getAge.invoke(student));
+        System.out.println(getName.invoke(student));
+    }
+
+    public static void main(String[] args) throws Exception {
+        Class<?> studentClass = readClassFile("Student.class", "com.hans.cglib_demo.Student", true);
+        startHook(studentClass);
+    }
 }
 ```
 
